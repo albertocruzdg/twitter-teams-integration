@@ -28,8 +28,8 @@ public class Decryptor
         byte[] encryptedSymmetricKey = Convert.FromBase64String(dataKey);
         byte[] decryptedSymmetricKey = provider.Decrypt(encryptedSymmetricKey, fOAEP: true);
 
-        byte[] encryptedPayload = Encoding.UTF8.GetBytes(data);
-        byte[] expectedSignature = Encoding.UTF8.GetBytes(dataSignature);
+        byte[] encryptedPayload = Convert.FromBase64String(data);
+        byte[] expectedSignature = Convert.FromBase64String(dataSignature);
         byte[] actualSignature;
 
         using (HMACSHA256 hmac = new HMACSHA256(decryptedSymmetricKey))
