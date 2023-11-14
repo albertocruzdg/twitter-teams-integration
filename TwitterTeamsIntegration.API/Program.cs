@@ -43,71 +43,15 @@ app.MapPost("/notify", async (HttpRequest request, ILogger<Program> logger, Micr
             ChangeNotificationCollection.CreateFromDiscriminatorValue);
     
     var wrapper = new CertificateWrapper();
-    
-    using var rsaPrivateKey = wrapper.Certificate.GetRSAPrivateKey();
-
-    if (rsaPrivateKey == null)
-    {
-        throw new Exception("Null key");
-    }
-
-    RSAParameters rsaParams = rsaPrivateKey.ExportParameters(true);
-
-    // Create a new RSACryptoServiceProvider and import the parameters
-    RSACryptoServiceProvider provider = new RSACryptoServiceProvider(rsaPrivateKey.KeySize);
-    provider.ImportParameters(rsaParams);
+    var decryptor = new Decryptor() { Certificate = wrapper.Certificate };
 
     foreach (var notification in payload.Value)
     {
-        string decryptedResourceData;
-
-        byte[] encryptedSymmetricKey = Convert.FromBase64String(notification.EncryptedContent.DataKey);
-        byte[] decryptedSymmetricKey = provider.Decrypt(encryptedSymmetricKey, fOAEP: true);
-
-        byte[] encryptedPayload = Encoding.UTF8.GetBytes(notification.EncryptedContent.Data);
-        byte[] expectedSignature = Encoding.UTF8.GetBytes(notification.EncryptedContent.DataSignature);
-        byte[] actualSignature;
-
-        using (HMACSHA256 hmac = new HMACSHA256(decryptedSymmetricKey))
-        {
-            actualSignature = hmac.ComputeHash(encryptedPayload);
-        }
-
-        if (actualSignature.SequenceEqual(expectedSignature))
-        {
-            // Continue with decryption of the encryptedPayload.
-            AesCryptoServiceProvider aesProvider = new AesCryptoServiceProvider();
-            aesProvider.Key = decryptedSymmetricKey;
-            aesProvider.Padding = PaddingMode.PKCS7;
-            aesProvider.Mode = CipherMode.CBC;
-
-            // Obtain the intialization vector from the symmetric key itself.
-            int vectorSize = 16;
-            byte[] iv = new byte[vectorSize];
-            Array.Copy(decryptedSymmetricKey, iv, vectorSize);
-            aesProvider.IV = iv;
-
-            // Decrypt the resource data content.
-            using (var decryptor = aesProvider.CreateDecryptor())
-            {
-                using (MemoryStream msDecrypt = new MemoryStream(encryptedPayload))
-                {
-                    using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
-                    {
-                        using (StreamReader srDecrypt = new StreamReader(csDecrypt))
-                        {
-                            decryptedResourceData = srDecrypt.ReadToEnd();
-                        }
-                    }
-                }
-            }
-
-            // decryptedResourceData now contains a JSON string that represents the resource.
-        }
-        else
-        {
-            // Do not attempt to decrypt encryptedPayload. Assume notification payload has been tampered with and investigate.
-        }
+        string decryptedResourceData = decryptor.Decrypt(
+            notification.EncryptedContent.Data,
+            notification.EncryptedContent.DataSignature,
+            notification.EncryptedContent.DataKey
+        );
     }
 
 
