@@ -148,7 +148,7 @@ RPe22l739ppL5N4AOTc7wxM3VysR2uSp";
         Certificate = new X509Certificate2(Encoding.UTF8.GetBytes(PublicKey));
 
         using var privateKey = RSA.Create();
-        privateKey.ImportPkcs8PrivateKey(Convert.FromBase64String(PrivateKey2), out _);
+        privateKey.ImportFromPem(PrivateKey);
         Certificate = Certificate.CopyWithPrivateKey(privateKey);
     }
 }
